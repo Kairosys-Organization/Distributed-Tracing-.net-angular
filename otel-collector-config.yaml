@@ -1,8 +1,7 @@
 # ============================================================
 # OpenTelemetry Collector Configuration
 # ============================================================
-# All dynamic values are injected via environment variables
-# from the .env file through docker-compose.
+# All dynamic values injected from .env via docker-compose.
 #
 # Pipeline Architecture:
 #   All apps → Collector → traces/jaeger  (batch)         → Jaeger :16686
@@ -22,10 +21,13 @@ receivers:
         endpoint: 0.0.0.0:4318
         cors:
           allowed_origins:
-            - "http://*"
-            - "https://*"
+            - "http://localhost:4200"
+            - "http://localhost:4201"
+            - "http://localhost"
           allowed_headers:
             - "Content-Type"
+            - "Content-Encoding"
+            - "Accept"
             - "traceparent"
             - "tracestate"
             - "baggage"
@@ -48,15 +50,14 @@ exporters:
     tls:
       insecure: true
 
-  # Endpoint is injected from .env → docker-compose → container env var.
-  # The OTel Collector natively expands ${VAR} in config files.
   otlp/custom:
     endpoint: ${CUSTOM_CONSUMER_ENDPOINT}
     tls:
       insecure: true
 
+  # Detailed debug — logs every span so we can confirm ingestion
   debug:
-    verbosity: basic
+    verbosity: detailed
 
 service:
   extensions: [health_check]
