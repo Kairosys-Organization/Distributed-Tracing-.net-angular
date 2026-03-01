@@ -194,6 +194,33 @@ export class AppComponent {
       status: 'idle',
       action: () => this.runHttp('slow', this.errorService.slowResponse()),
     },
+    {
+      id: 'db-duplicate',
+      label: 'DB Unique Constraint',
+      description: 'Attempt to insert existing user',
+      icon: '👯‍♂️',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('db-duplicate', this.errorService.simulateDuplicateUser()),
+    },
+    {
+      id: 'db-timeout',
+      label: 'DB Connection Timeout',
+      description: 'Simulated 3s DB stall',
+      icon: '🐢',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('db-timeout', this.errorService.simulateDbTimeout()),
+    },
+    {
+      id: 'biz-null',
+      label: 'Business Logic Null',
+      description: 'Unexpected Null Reference on User',
+      icon: '🕳️',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('biz-null', this.errorService.simulateNullReference()),
+    },
   ];
 
   private findButton(id: string): ActionButton | undefined {

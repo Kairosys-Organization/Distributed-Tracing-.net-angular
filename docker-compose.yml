@@ -1,19 +1,21 @@
 services:
   # ─── Observability ─────────────────────────────────────────────
+
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: pathfinder-jaeger
     ports:
       - "16686:16686"   # Jaeger UI
-      - "4317:4317"     # OTLP gRPC (direct, bypasses collector)
-      - "4318:4318"     # OTLP HTTP (for browser UIs)
     environment:
       - COLLECTOR_OTLP_ENABLED=true
-      - COLLECTOR_OTLP_HTTP_CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:4201
-      - COLLECTOR_OTLP_HTTP_CORS_ALLOWED_HEADERS=content-type
     restart: unless-stopped
     networks:
       - pathfinder-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:16686"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -21,13 +23,19 @@ services:
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     ports:
-      - "4319:4317"     # OTLP gRPC (collector)
-      - "4320:4318"     # OTLP HTTP (collector)
+      - "4319:4317"     # OTLP gRPC  — for external apps
+      - "4320:4318"     # OTLP HTTP  — for browser / external apps
+    environment:
+      # Passed into otel-collector-config.yaml via native env-var expansion
+      - CUSTOM_CONSUMER_ENDPOINT=${CUSTOM_CONSUMER_ENDPOINT}
     depends_on:
-      - jaeger
+      jaeger:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - pathfinder-network
+    # otel-collector-contrib is distroless — no shell available for healthcheck.
+    # The collector starts in < 1s so service_started is sufficient.
 
   # ─── Backend API ───────────────────────────────────────────────
   pathfinder-api:
@@ -38,8 +46,7 @@ services:
     ports:
       - "5215:8080"
     environment:
-      # OTel Auto-Instrumentation — sends traces to the Collector
-      - OTEL_SERVICE_NAME=pathfinder-api
+      - OTEL_SERVICE_NAME=${DOTNET_SERVICE_NAME}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_TRACES_EXPORTER=otlp
@@ -47,7 +54,8 @@ services:
       - OTEL_LOGS_EXPORTER=none
       - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=PathfinderApi
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_started
     networks:
       - pathfinder-network
 
@@ -60,8 +68,8 @@ services:
     ports:
       - "4200:80"
     environment:
-      - API_URL=http://localhost:5215/api
-      - OTEL_URL=http://localhost:4318/v1/traces
+      - API_URL=${API_URL}
+      - OTEL_URL=${OTEL_COLLECTOR_HTTP_URL}
     depends_on:
       - pathfinder-api
     networks:
@@ -75,8 +83,8 @@ services:
     ports:
       - "4201:80"
     environment:
-      - API_URL=http://localhost:5215/api
-      - OTEL_URL=http://localhost:4318/v1/traces
+      - API_URL=${API_URL}
+      - OTEL_URL=${OTEL_COLLECTOR_HTTP_URL}
     depends_on:
       - pathfinder-api
     networks:

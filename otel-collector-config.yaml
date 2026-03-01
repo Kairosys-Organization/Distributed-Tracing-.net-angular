@@ -1,9 +1,17 @@
+# ============================================================
 # OpenTelemetry Collector Configuration
-# Receives traces and fans them out to multiple destinations.
+# ============================================================
+# All dynamic values are injected via environment variables
+# from the .env file through docker-compose.
 #
-# Architecture:
-#   App → Collector → Jaeger (local dev)
-#                   → Your Custom Service (production)
+# Pipeline Architecture:
+#   All apps → Collector → traces/jaeger  (batch)         → Jaeger :16686
+#                        → traces/custom  (tail_sampling) → ${CUSTOM_CONSUMER_ENDPOINT}
+# ============================================================
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
 
 receivers:
   otlp:
@@ -12,53 +20,57 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+          allowed_headers:
+            - "Content-Type"
+            - "traceparent"
+            - "tracestate"
+            - "baggage"
 
 processors:
-  batch:
+  batch/jaeger:
     timeout: 5s
-    send_batch_size: 1024
+    send_batch_size: 512
+
+  tail_sampling/custom:
+    decision_wait: 10s
+    num_traces: 10000
+    policies:
+      - name: always-sample
+        type: always_sample
 
 exporters:
-  # ─── Exporter 1: Jaeger (always enabled) ───────────────────────
   otlp/jaeger:
     endpoint: jaeger:4317
     tls:
       insecure: true
 
-  # ─── Exporter 2: Your Custom Service ───────────────────────────
-  # Uncomment and configure to send traces to your own product.
-  #
-  # otlp/custom:
-  #   endpoint: https://ingest.yourproduct.com:443
-  #   headers:
-  #     Authorization: "Bearer YOUR_API_KEY"
-  #   tls:
-  #     insecure: false
+  # Endpoint is injected from .env → docker-compose → container env var.
+  # The OTel Collector natively expands ${VAR} in config files.
+  otlp/custom:
+    endpoint: ${CUSTOM_CONSUMER_ENDPOINT}
+    tls:
+      insecure: true
 
-  # ─── Exporter 3: Honeycomb (example) ───────────────────────────
-  # otlp/honeycomb:
-  #   endpoint: api.honeycomb.io:443
-  #   headers:
-  #     x-honeycomb-team: YOUR_HONEYCOMB_API_KEY
-
-  # ─── Exporter 4: Datadog (example) ────────────────────────────
-  # otlp/datadog:
-  #   endpoint: http://datadog-agent:4317
-  #   tls:
-  #     insecure: true
-
-  # ─── Debug exporter (logs traces to stdout) ────────────────────
   debug:
     verbosity: basic
 
 service:
+  extensions: [health_check]
   pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters:
-        - otlp/jaeger        # Always export to Jaeger
-        - debug               # Log trace IDs to collector stdout
-        # - otlp/custom       # ← Uncomment to send to your service
-        # - otlp/honeycomb    # ← Uncomment for Honeycomb
-        # - otlp/datadog      # ← Uncomment for Datadog
+    traces/jaeger:
+      receivers:  [otlp]
+      processors: [batch/jaeger]
+      exporters:  [otlp/jaeger, debug]
+
+    traces/custom:
+      receivers:  [otlp]
+      processors: [tail_sampling/custom]
+      exporters:  [otlp/custom]
+
+  telemetry:
+    logs:
+      level: info

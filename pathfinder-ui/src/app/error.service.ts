@@ -60,6 +60,20 @@ export class ErrorService {
         return this.http.get(`${API_BASE}/errors/slow-response`);
     }
 
+    // ── Database Real-Life Errors (via UsersController) ────────────
+
+    simulateDuplicateUser(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-duplicate`, {});
+    }
+
+    simulateDbTimeout(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-timeout`, {});
+    }
+
+    simulateNullReference(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-null-reference`, {});
+    }
+
     // ── Client-side error simulations ──────────────────────────────
     // No manual span creation — GlobalErrorHandler traces everything automatically
 

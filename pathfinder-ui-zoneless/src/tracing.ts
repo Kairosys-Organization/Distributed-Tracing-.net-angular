@@ -6,19 +6,20 @@ import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xm
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-// Note: No ZoneContextManager import needed for zoneless!
 
-const env = (window as any).env || {
-    API_URL: 'http://localhost:5215',
-    OTEL_URL: 'http://localhost:4318/v1/traces'
-};
+// All config comes from window.env, which is injected at container startup
+// from env.template.js via envsubst. Edit .env to change these values.
+const env = (window as any).env;
+if (!env?.OTEL_URL || !env?.API_URL) {
+    console.warn('[Tracing] window.env not loaded — traces will be disabled. Check assets/env.js is included in index.html and .env is configured.');
+}
 
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'pathfinder-ui-zoneless',
 });
 
 const exporter = new OTLPTraceExporter({
-    url: env.OTEL_URL,
+    url: env?.OTEL_URL,
 });
 
 const provider = new WebTracerProvider({
@@ -26,23 +27,23 @@ const provider = new WebTracerProvider({
     spanProcessors: [new BatchSpanProcessor(exporter)],
 });
 
-// Register without context manager (uses default StackContextManager)
+// Register without context manager (uses default StackContextManager for zoneless)
 provider.register();
 
 registerInstrumentations({
     instrumentations: [
         new FetchInstrumentation({
             propagateTraceHeaderCorsUrls: [
-                new RegExp(env.API_URL + '.*')
+                new RegExp((env?.API_URL ?? '') + '.*')
             ],
             clearTimingResources: true,
         }),
         new XMLHttpRequestInstrumentation({
             propagateTraceHeaderCorsUrls: [
-                new RegExp(env.API_URL + '.*')
+                new RegExp((env?.API_URL ?? '') + '.*')
             ],
         }),
     ],
 });
 
-console.log('[Tracing] OpenTelemetry initialized (Zoneless)');
+console.log('[Tracing] OpenTelemetry initialized (Zoneless). Collector:', env?.OTEL_URL);

@@ -1,6 +1,8 @@
 using Serilog;
 using Serilog.Events;
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using PathfinderApi.Models;
 
 // ---------- Serilog bootstrap ----------
 Log.Logger = new LoggerConfiguration()
@@ -23,6 +25,10 @@ try
     builder.Services.AddControllers();
     builder.Services.AddHttpClient();
     builder.Services.AddOpenApi();
+    
+    // ---------- Database ----------
+    builder.Services.AddDbContext<AppDbContext>(opts => 
+        opts.UseInMemoryDatabase("PathfinderDb"));
 
     // ---------- CORS ----------
     builder.Services.AddCors(opts =>
@@ -43,6 +49,30 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
+    }
+
+    // ---------- Seed Data ----------
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.EnsureCreated();
+
+        if (!db.Users.Any())
+        {
+            db.Users.Add(new User 
+            { 
+                Email = "john@example.com", 
+                FullName = "John Doe" 
+            });
+            db.Users.Add(new User 
+            { 
+                Email = "admin@pathfinder.local", 
+                FullName = "System Administrator" 
+            });
+            
+            db.SaveChanges();
+            Log.Information("Pre-populated InMemory H2-style database with initial users.");
+        }
     }
 
     // ---------- Global exception handler ----------
