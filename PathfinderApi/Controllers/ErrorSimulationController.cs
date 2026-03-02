@@ -301,10 +301,308 @@ public class ErrorSimulationController : ControllerBase
         });
     }
 
+    // ── 12. Complex Business Error ──────────────────────────────────
+    [HttpGet("complex-business-error")]
+    public IActionResult ComplexBusinessError()
+    {
+        using var activity = ActivitySource.StartActivity("SimulateComplexBusinessError");
+
+        _logger.LogWarning("Triggering complex business error (OrderService -> PaymentGateway)");
+
+        try
+        {
+            var orderService = new OrderService();
+            // Invalid business logic: applying a discount greater than the price
+            orderService.ProcessOrder(price: 100, discount: 150);
+            return Ok(); // never reached
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Complex business error occurred");
+
+            return StatusCode(500, new
+            {
+                error = "ComplexBusinessError",
+                message = ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+    }
+
+    // ── 13. Indirect Error ──────────────────────────────────────────
+    // Simulated as a normal business endpoint so we can see how an error propagates 
+    // across multiple layers (Controller -> Registration -> Account -> Notification -> Email)
+    [HttpGet("process-registration")]
+    public IActionResult ProcessRegistration()
+    {
+        using var activity = ActivitySource.StartActivity("ProcessRegistrationEndpoint");
+
+        _logger.LogInformation("Starting user registration process");
+
+        try
+        {
+            var registrationService = new RegistrationService();
+            // We pass a bad ID (999), meaning the account is invalid/missing.
+            // But a defect in the validation layer passes it down as a null object.
+            registrationService.RegisterUser(999); 
+            return Ok(new { message = "Registration successful" }); // never reached
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Registration process failed due to an error in a downstream component");
+
+            return StatusCode(500, new
+            {
+                error = "ProcessRegistrationFailed",
+                message = ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+    }
+
+    // ── 14. Rate Limit Exceeded (429) ───────────────────────────────
+    [HttpGet("rate-limit")]
+    public IActionResult RateLimitExceeded()
+    {
+        using var activity = ActivitySource.StartActivity("SimulateRateLimit");
+        activity?.SetTag("http.status_code", 429);
+        activity?.SetTag("rate_limit.limit", 100);
+        activity?.SetTag("rate_limit.remaining", 0);
+        activity?.SetTag("rate_limit.reset_time", DateTime.UtcNow.AddMinutes(1).ToString("O"));
+
+        _logger.LogWarning("Simulating Rate Limit Exceeded (429 Too Many Requests)");
+
+        return StatusCode(429, new
+        {
+            error = "TooManyRequests",
+            message = "Rate limit exceeded. Try again in 60 seconds.",
+            traceId = Activity.Current?.TraceId.ToString()
+        });
+    }
+
+    // ── 15. Invalid Data Format / Parsing Error ─────────────────────
+    [HttpGet("invalid-data-format")]
+    public IActionResult InvalidDataFormat()
+    {
+        using var activity = ActivitySource.StartActivity("SimulateInvalidDataFormat");
+        
+        _logger.LogWarning("Triggering invalid data format exception (simulated corrupt DB record)");
+
+        try
+        {
+            // Simulate reading a corrupted JSON string from a database or cache
+            string badData = "{\"userId\": 123, \"isActive\": \"not_a_boolean\"}";
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, bool>>(badData);
+            
+            return Ok(parsed); // never reached
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Failed to parse data format");
+
+            return StatusCode(500, new
+            {
+                error = "DataParsingError",
+                message = "Failed to parse incoming data: " + ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+    }
+
+    // ── 16. Partial Saga Failure (Distributed Transaction) ──────────
+    [HttpGet("partial-saga-failure")]
+    public IActionResult PartialSagaFailure()
+    {
+        using var activity = ActivitySource.StartActivity("SimulatePartialSagaFailure");
+
+        _logger.LogWarning("Triggering distributed transaction / partial saga failure");
+
+        try
+        {
+            var inventoryService = new LocalInventoryService();
+            var billingService = new RemoteBillingService();
+
+            // Step 1: Deduct from local inventory (Success)
+            inventoryService.ReserveItem("SKU-9999", 1);
+
+            // Step 2: Call remote billing service (Fails)
+            billingService.ChargeCustomer("CUST-123", 49.99m);
+
+            return Ok(new { message = "Order fulfilled successfully" }); // never reached
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Saga failed at billing step. Inventory is now out of sync (not compensated)!");
+
+            return StatusCode(500, new
+            {
+                error = "SagaFailure",
+                message = "The transaction partially failed. Data inconsistency detected: " + ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+    }
+
     // ── Helper class for circular reference ─────────────────────────
     private class CircularRef
     {
         public string Name { get; set; } = "";
         public CircularRef? Ref { get; set; }
     }
+
+    // ── Helper classes for complex business error ───────────────────
+    private class OrderService
+    {
+        private readonly PaymentGateway _paymentGateway = new();
+
+        public void ProcessOrder(decimal price, decimal discount)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("OrderService.ProcessOrder");
+            activity?.SetTag("order.price", price);
+            activity?.SetTag("order.discount", discount);
+
+            // Bug in business logic: discount can make finalPrice negative
+            decimal finalPrice = price - discount;
+
+            activity?.SetTag("order.final_price", finalPrice);
+
+            _paymentGateway.Charge(finalPrice);
+        }
+    }
+
+    private class PaymentGateway
+    {
+        public void Charge(decimal amount)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("PaymentGateway.Charge");
+            activity?.SetTag("payment.amount", amount);
+
+            if (amount <= 0)
+            {
+                throw new ArgumentException($"Invalid payment amount: {amount}. Amount must be greater than zero.", nameof(amount));
+            }
+
+            // Simulate successful charge
+        }
+    }
+
+    // ── Helper classes for indirect error (User Registration) ───────
+    private class RegistrationService
+    {
+        private readonly AccountValidator _validator = new();
+
+        public void RegisterUser(int accountId)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("RegistrationService.RegisterUser");
+            activity?.SetTag("account.id", accountId);
+
+            _validator.ValidateAndNotify(accountId);
+        }
+    }
+
+    private class AccountValidator
+    {
+        private readonly NotificationService _notificationService = new();
+
+        public void ValidateAndNotify(int accountId)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("AccountValidator.ValidateAndNotify");
+            
+            // Simulate fetching account details. Returns null for 999
+            UserProfile? profile = accountId == 999 ? null : new UserProfile { Id = accountId, Email = "newuser@example.com" };
+
+            // Defect: Validation layer forgets to check for null profile before proceeding
+            activity?.SetTag("profile.status", profile == null ? "invalid" : "valid");
+
+            _notificationService.QueueWelcomeEmail(profile!);
+        }
+    }
+
+    private class NotificationService
+    {
+        private readonly EmailSender _emailSender = new();
+
+        public void QueueWelcomeEmail(UserProfile profile)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("NotificationService.QueueWelcomeEmail");
+            
+            // Still no null check here, just passing it deeper
+            _emailSender.SendHtmlEmail(profile);
+        }
+    }
+
+    private class EmailSender
+    {
+        public void SendHtmlEmail(UserProfile profile)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("EmailSender.SendHtmlEmail");
+            
+            // Defect finally manifests here, deep in the call stack
+            activity?.SetTag("email.recipient", profile.Email); // Throws NullReferenceException because profile is null
+
+            // Code to send the email would go here
+        }
+    }
+
+    private class UserProfile 
+    {
+        public int Id { get; set; }
+        public string Email { get; set; } = "";
+    }
+
+    // ── Helper classes for Saga Failure ─────────────────────────────
+    private class LocalInventoryService
+    {
+        public void ReserveItem(string sku, int quantity)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("InventoryService.ReserveItem");
+            activity?.SetTag("inventory.sku", sku);
+            activity?.SetTag("inventory.quantity", quantity);
+            
+            // Succeeds and commits to hypothetical database
+            activity?.AddEvent(new ActivityEvent("Inventory reserved successfully"));
+        }
+    }
+
+    private class RemoteBillingService
+    {
+        public void ChargeCustomer(string customerId, decimal amount)
+        {
+            using var activity = ErrorSimulationController.ActivitySource.StartActivity("BillingService.ChargeCustomer");
+            activity?.SetTag("billing.customer", customerId);
+            activity?.SetTag("billing.amount", amount);
+
+            // Simulates a transient network failure or payment gateway rejection
+            throw new HttpRequestException("Payment gateway timed out. Charge failed.");
+        }
+    }
 }
+

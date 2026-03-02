@@ -22,7 +22,6 @@ OUT_DIR="./release/${PACKAGE_NAME}"
 IMAGES_DIR="${OUT_DIR}/images"
 
 IMAGE_API="pathfinder/api:${VERSION}"
-IMAGE_UI="pathfinder/ui:${VERSION}"
 IMAGE_UI_ZONELESS="pathfinder/ui-zoneless:${VERSION}"
 
 # ── Colors ────────────────────────────────────────────────────
@@ -41,9 +40,6 @@ log "Building Docker images for version ${VERSION}..."
 log "  → pathfinder-api"
 docker build -t "${IMAGE_API}" ./PathfinderApi
 
-log "  → pathfinder-ui"
-docker build -t "${IMAGE_UI}" ./pathfinder-ui
-
 log "  → pathfinder-ui-zoneless"
 docker build -t "${IMAGE_UI_ZONELESS}" ./pathfinder-ui-zoneless
 
@@ -59,9 +55,6 @@ log "Saving images to tar files (this may take a moment)..."
 
 log "  → images/pathfinder-api.tar"
 docker save "${IMAGE_API}" -o "${IMAGES_DIR}/pathfinder-api.tar"
-
-log "  → images/pathfinder-ui.tar"
-docker save "${IMAGE_UI}" -o "${IMAGES_DIR}/pathfinder-ui.tar"
 
 log "  → images/pathfinder-ui-zoneless.tar"
 docker save "${IMAGE_UI_ZONELESS}" -o "${IMAGES_DIR}/pathfinder-ui-zoneless.tar"
@@ -145,25 +138,11 @@ services:
     networks:
       - pathfinder-network
 
-  pathfinder-ui:
-    image: ${IMAGE_UI}
-    container_name: pathfinder-ui
-    ports:
-      - "4200:80"
-    environment:
-      - API_URL=\${API_URL}
-      - OTEL_URL=\${OTEL_COLLECTOR_HTTP_URL}
-    depends_on:
-      - pathfinder-api
-    restart: unless-stopped
-    networks:
-      - pathfinder-network
-
   pathfinder-ui-zoneless:
     image: ${IMAGE_UI_ZONELESS}
     container_name: pathfinder-ui-zoneless
     ports:
-      - "4201:80"
+      - "4200:80"
     environment:
       - API_URL=\${API_URL}
       - OTEL_URL=\${OTEL_COLLECTOR_HTTP_URL}
@@ -219,7 +198,6 @@ ok "Stack is up!"
 echo ""
 echo "  Jaeger UI:          http://localhost:16686"
 echo "  Angular UI:         http://localhost:4200"
-echo "  Angular UI Zoneless:http://localhost:4201"
 echo "  API:                http://localhost:5215/api/health"
 echo ""
 echo "  Collector gRPC (custom app input): localhost:4319"
@@ -269,7 +247,6 @@ After the first run, use \`docker compose up -d\` / \`docker compose down\` dire
 | Service | Port | URL |
 |---|---|---|
 | Angular UI | 4200 | http://localhost:4200 |
-| Angular UI (Zoneless) | 4201 | http://localhost:4201 |
 | .NET API | 5215 | http://localhost:5215/api/health |
 | Jaeger UI | 16686 | http://localhost:16686 |
 | OTel Collector gRPC | 4319 | \`host:4319\` |
@@ -326,7 +303,6 @@ echo "  📏 Size: ${ZIPSIZE}"
 echo ""
 echo "  Contents:"
 echo "    ├── images/pathfinder-api.tar"
-echo "    ├── images/pathfinder-ui.tar"
 echo "    ├── images/pathfinder-ui-zoneless.tar"
 echo "    ├── docker-compose.yml"
 echo "    ├── otel-collector-config.yaml"

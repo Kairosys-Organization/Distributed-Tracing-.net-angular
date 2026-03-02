@@ -60,6 +60,10 @@ export class ErrorService {
         return this.http.get(`${API_BASE}/errors/slow-response`);
     }
 
+    complexBusinessError(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/complex-business-error`);
+    }
+
     // ── Database Real-Life Errors (via UsersController) ────────────
 
     simulateDuplicateUser(): Observable<any> {

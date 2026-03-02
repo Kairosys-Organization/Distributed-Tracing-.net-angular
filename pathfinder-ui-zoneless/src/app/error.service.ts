@@ -60,7 +60,39 @@ export class ErrorService {
         return this.http.get(`${API_BASE}/errors/slow-response`);
     }
 
-    // ── Client-side error simulations ──────────────────────────────
+    complexBusinessError(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/complex-business-error`);
+    }
+
+    processRegistration(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/process-registration`);
+    }
+
+    rateLimitExceeded(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/rate-limit`);
+    }
+
+    invalidDataFormat(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/invalid-data-format`);
+    }
+
+    partialSagaFailure(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/partial-saga-failure`);
+    }
+
+    // ── Database Real-Life Errors (via UsersController) ──────────────────────────────
+    simulateDuplicateUser(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-duplicate`, {});
+    }
+
+    simulateDbTimeout(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-timeout`, {});
+    }
+
+    simulateNullReference(): Observable<any> {
+        return this.http.post(`${API_BASE}/users/simulate-null-reference`, {});
+    }
+
     // No manual span creation — GlobalErrorHandler traces everything automatically
 
     simulateJsException(): void {
@@ -93,5 +125,18 @@ export class ErrorService {
         const img = new Image();
         img.src = 'http://localhost:9999/nonexistent-image.png';
         document.body.appendChild(img);
+    }
+
+    simulateUiFreeze(): void {
+        const start = Date.now();
+        while (Date.now() - start < 3000) {
+            // Busy wait to freeze the main thread for 3 seconds
+        }
+        throw new Error('Application unresponsive: Main thread blocked for 3000ms');
+    }
+
+    simulateMaxCallStackSizeExceeded(): void {
+        const recurse = (): any => recurse();
+        recurse();
     }
 }

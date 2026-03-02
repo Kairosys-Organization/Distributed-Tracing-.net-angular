@@ -71,7 +71,7 @@ services:
   # ─── Angular UI ────────────────────────────────────────────────
   ui:
     build:
-      context: ./pathfinder-ui
+      context: ./pathfinder-ui-zoneless
       dockerfile: Dockerfile
     container_name: pathfinder-ui
     ports:

@@ -221,6 +221,15 @@ export class AppComponent {
       status: 'idle',
       action: () => this.runHttp('biz-null', this.errorService.simulateNullReference()),
     },
+    {
+      id: 'complex-biz',
+      label: 'Complex Business Error',
+      description: 'Payment logic fault from bad inputs',
+      icon: '🧩',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('complex-biz', this.errorService.complexBusinessError()),
+    },
   ];
 
   private findButton(id: string): ActionButton | undefined {

@@ -55,28 +55,13 @@ services:
       - pathfinder-network
 
   # ─── Angular UIs ───────────────────────────────────────────────
-  pathfinder-ui:
-    build:
-      context: ./pathfinder-ui
-      dockerfile: Dockerfile
-    container_name: pathfinder-ui
-    ports:
-      - "4200:80"
-    environment:
-      - API_URL=${API_URL}
-      - OTEL_URL=/otlp/v1/traces
-    depends_on:
-      - pathfinder-api
-    networks:
-      - pathfinder-network
-
   pathfinder-ui-zoneless:
     build:
       context: ./pathfinder-ui-zoneless
       dockerfile: Dockerfile
     container_name: pathfinder-ui-zoneless
     ports:
-      - "4201:80"
+      - "4200:80"
     environment:
       - API_URL=${API_URL}
       - OTEL_URL=/otlp/v1/traces
