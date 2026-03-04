@@ -23,6 +23,7 @@ IMAGES_DIR="${OUT_DIR}/images"
 
 IMAGE_API="pathfinder/api:${VERSION}"
 IMAGE_UI_ZONELESS="pathfinder/ui-zoneless:${VERSION}"
+IMAGE_NEWAPP="pathfinder/newapp:${VERSION}"
 
 # ── Colors ────────────────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -43,6 +44,9 @@ docker build -t "${IMAGE_API}" ./PathfinderApi
 log "  → pathfinder-ui-zoneless"
 docker build -t "${IMAGE_UI_ZONELESS}" ./pathfinder-ui-zoneless
 
+log "  → pathfinder-newapp"
+docker build -t "${IMAGE_NEWAPP}" ./NewApp
+
 ok "All images built."
 
 # ── Step 2: Prepare output directory ──────────────────────────
@@ -58,6 +62,9 @@ docker save "${IMAGE_API}" -o "${IMAGES_DIR}/pathfinder-api.tar"
 
 log "  → images/pathfinder-ui-zoneless.tar"
 docker save "${IMAGE_UI_ZONELESS}" -o "${IMAGES_DIR}/pathfinder-ui-zoneless.tar"
+
+log "  → images/pathfinder-newapp.tar"
+docker save "${IMAGE_NEWAPP}" -o "${IMAGES_DIR}/pathfinder-newapp.tar"
 
 ok "Images saved."
 
@@ -131,6 +138,8 @@ services:
       - OTEL_METRICS_EXPORTER=none
       - OTEL_LOGS_EXPORTER=none
       - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=PathfinderApi
+      - RABBITMQ_HOST=rabbitmq
+      - NEWAPP_URL=http://newapp:8080/api/newapp/process
     depends_on:
       otel-collector:
         condition: service_started
@@ -148,6 +157,36 @@ services:
       - OTEL_URL=\${OTEL_COLLECTOR_HTTP_URL}
     depends_on:
       - pathfinder-api
+    restart: unless-stopped
+    networks:
+      - pathfinder-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pathfinder-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - pathfinder-network
+
+  newapp:
+    image: ${IMAGE_NEWAPP}
+    container_name: pathfinder-newapp
+    ports:
+      - "8080:8080"
+    environment:
+      - OTEL_SERVICE_NAME=newapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_LOGS_EXPORTER=none
+      - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=NewApp
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
     networks:
       - pathfinder-network
@@ -304,6 +343,7 @@ echo ""
 echo "  Contents:"
 echo "    ├── images/pathfinder-api.tar"
 echo "    ├── images/pathfinder-ui-zoneless.tar"
+echo "    ├── images/pathfinder-newapp.tar"
 echo "    ├── docker-compose.yml"
 echo "    ├── otel-collector-config.yaml"
 echo "    ├── .env.example"

@@ -80,6 +80,14 @@ export class ErrorService {
         return this.http.get(`${API_BASE}/errors/partial-saga-failure`);
     }
 
+    simulateNewAppHttpError(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/ui-pathfinderapi-newapp`);
+    }
+
+    simulateNewAppRabbitMqError(): Observable<any> {
+        return this.http.get(`${API_BASE}/errors/rabbitmq-newapp`);
+    }
+
     // ── Database Real-Life Errors (via UsersController) ──────────────────────────────
     simulateDuplicateUser(): Observable<any> {
         return this.http.post(`${API_BASE}/users/simulate-duplicate`, {});

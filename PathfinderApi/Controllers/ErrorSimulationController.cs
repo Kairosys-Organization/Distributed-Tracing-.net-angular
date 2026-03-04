@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text;
+using RabbitMQ.Client;
 
 namespace PathfinderApi.Controllers;
 
@@ -10,12 +12,105 @@ public class ErrorSimulationController : ControllerBase
 {
     private static readonly ActivitySource ActivitySource = new("PathfinderApi");
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConnectionFactory _connectionFactory;
     private readonly ILogger<ErrorSimulationController> _logger;
 
-    public ErrorSimulationController(IHttpClientFactory httpClientFactory, ILogger<ErrorSimulationController> logger)
+    public ErrorSimulationController(IHttpClientFactory httpClientFactory, IConnectionFactory connectionFactory, ILogger<ErrorSimulationController> logger)
     {
         _httpClientFactory = httpClientFactory;
+        _connectionFactory = connectionFactory;
         _logger = logger;
+    }
+
+    // ── 0a. PathfinderApi to NewApp (HTTP) Error ────────────────────
+    [HttpGet("ui-pathfinderapi-newapp")]
+    public async Task<IActionResult> UiPathfinderApiNewApp()
+    {
+        using var activity = ActivitySource.StartActivity("SimulateNewAppHttpError");
+        
+        _logger.LogWarning("Calling NewApp with missing data to trigger an error");
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(10);
+            
+            // Send empty data to trigger the Bad Request exception in NewApp
+            var payload = new { data = "" };
+            var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            
+            // Assuming NewApp is reachable at http://newapp:8080/api/newapp/process in docker-compose
+            var newAppUrl = Environment.GetEnvironmentVariable("NEWAPP_URL") ?? "http://newapp:8080/api/newapp/process";
+            
+            var response = await client.PostAsync(newAppUrl, content);
+            response.EnsureSuccessStatusCode();
+            
+            return Ok(new { message = "Call succeeded (unexpected)" });
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Failed to call NewApp");
+
+            return StatusCode(500, new
+            {
+                error = "NewAppHttpError",
+                message = ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+    }
+
+    // ── 0b. PathfinderApi to NewApp (RabbitMQ) Error ────────────────
+    [HttpGet("rabbitmq-newapp")]
+    public async Task<IActionResult> RabbitMqNewApp()
+    {
+        using var activity = ActivitySource.StartActivity("SimulateNewAppRabbitMqError");
+        
+        _logger.LogWarning("Publishing error-triggering message to RabbitMQ");
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateConnectionAsync();
+            using var channel = await connection.CreateChannelAsync();
+            
+            await channel.QueueDeclareAsync(queue: "newapp-queue", durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+            string message = "Please process this message. Oh wait, error! This is a bad message.";
+            var body = Encoding.UTF8.GetBytes(message);
+
+            await channel.BasicPublishAsync(exchange: string.Empty, routingKey: "newapp-queue", body: body);
+
+            return Ok(new
+            {
+                message = "Published error message to RabbitMQ. Check NewApp logs.",
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.StackTrace ?? "" }
+            }));
+            _logger.LogError(ex, "Failed to publish to RabbitMQ");
+
+            return StatusCode(500, new
+            {
+                error = "RabbitMqPublishError",
+                message = ex.Message,
+                traceId = Activity.Current?.TraceId.ToString()
+            });
+        }
     }
 
     // ── 1. Unhandled Exception ──────────────────────────────────────

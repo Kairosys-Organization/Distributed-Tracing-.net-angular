@@ -48,6 +48,40 @@ services:
       - OTEL_METRICS_EXPORTER=none
       - OTEL_LOGS_EXPORTER=none
       - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=PathfinderApi
+      - RABBITMQ_HOST=rabbitmq
+      - NEWAPP_URL=http://newapp:8080/api/newapp/process
+    depends_on:
+      otel-collector:
+        condition: service_started
+    networks:
+      - pathfinder-network
+
+  # ─── NewApp and RabbitMQ ──────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pathfinder-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - pathfinder-network
+
+  newapp:
+    build:
+      context: ./NewApp
+      dockerfile: Dockerfile
+    container_name: pathfinder-newapp
+    ports:
+      - "8080:8080"
+    environment:
+      - OTEL_SERVICE_NAME=newapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_LOGS_EXPORTER=none
+      - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=NewApp
+      - RABBITMQ_HOST=rabbitmq
     depends_on:
       otel-collector:
         condition: service_started

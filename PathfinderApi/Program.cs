@@ -3,6 +3,7 @@ using Serilog.Events;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using PathfinderApi.Models;
+using RabbitMQ.Client;
 
 // ---------- Serilog bootstrap ----------
 Log.Logger = new LoggerConfiguration()
@@ -25,6 +26,15 @@ try
     builder.Services.AddControllers();
     builder.Services.AddHttpClient();
     builder.Services.AddOpenApi();
+    
+    // ---------- RabbitMQ ----------
+    builder.Services.AddSingleton<IConnectionFactory>(sp =>
+    {
+        return new ConnectionFactory
+        {
+            HostName = builder.Configuration["RABBITMQ_HOST"] ?? "rabbitmq"
+        };
+    });
     
     // ---------- Database ----------
     builder.Services.AddDbContext<AppDbContext>(opts => 

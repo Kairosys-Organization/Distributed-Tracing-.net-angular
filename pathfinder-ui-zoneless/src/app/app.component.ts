@@ -266,6 +266,24 @@ export class AppComponent {
       status: 'idle',
       action: () => this.runHttp('partial-saga-failure', this.errorService.partialSagaFailure()),
     },
+    {
+      id: 'newapp-http',
+      label: 'NewApp HTTP Error',
+      description: 'Cross-service error triggered by PathfinderApi',
+      icon: '🌐',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('newapp-http', this.errorService.simulateNewAppHttpError()),
+    },
+    {
+      id: 'newapp-rabbitmq',
+      label: 'RabbitMQ Error',
+      description: 'Async error triggered via RabbitMQ',
+      icon: '🐇',
+      type: 'server',
+      status: 'idle',
+      action: () => this.runHttp('newapp-rabbitmq', this.errorService.simulateNewAppRabbitMqError()),
+    },
   ];
 
   private findButton(id: string): ActionButton | undefined {
