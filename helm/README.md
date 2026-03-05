@@ -16,6 +16,7 @@ helm/
 │       ├── rabbitmq.yaml       # RabbitMQ (Deployment + Service)
 │       ├── jaeger.yaml         # Jaeger tracing UI (Deployment + Service)
 │       ├── otel-collector.yaml # OTel Collector (Deployment + Service)
+│       ├── ops-agent.yaml      # Ops-Agent AI Trace Consumer (Deploy+Svc+ConfigMap+Secret)
 │       ├── otel-collector-configmap.yaml  # OTel config
 │       ├── ingress.yaml        # Ingress routing rules
 │       ├── configmap.yaml      # Shared config
@@ -27,8 +28,9 @@ helm/
 
 | What | Where | Example |
 |---|---|---|
-| **Image name** | `api.image`, `ui.image`, `newapp.image` | `pathfinder/api` |
-| **Image tag** | `api.tag`, `ui.tag`, `newapp.tag` | `latest` or `dev-1.0.0` |
+| **Image name** | `api.image`, `ui.image`, `newapp.image`, `opsAgent.image.repository` | `pathfinder/api` or `myrepo/ops-agent` |
+| **Image tag** | `api.tag`, `ui.tag`, `newapp.tag`, `opsAgent.image.tag` | `latest` or `local` |
+| **LLM API Key** | `opsAgent.secrets.OPENAI_API_KEY` | `sk-...` |
 | **ECR registry** | `registry` | `123456789012.dkr.ecr.us-east-1.amazonaws.com` |
 | **Replicas** | `api.replicas`, `ui.replicas` | `2` |
 | **CORS origins** | `api.env.CORS_ORIGINS` | `http://pathfinder.localhost` |
@@ -56,17 +58,21 @@ helm/
 ### Build Images
 
 ```bash
-docker build -t pathfinder/api:latest ./PathfinderApi
-docker build -t pathfinder/ui-zoneless:latest ./pathfinder-ui-zoneless
-docker build -t pathfinder/newapp:latest ./NewApp
+docker build -t pathfinder/api:dev-1.0.0 ./PathfinderApi
+docker build -t pathfinder/ui-zoneless:dev-1.0.0 ./pathfinder-ui-zoneless
+docker build -t pathfinder/newapp:dev-1.0.0 ./NewApp
+docker build -t ops-agent:local /Users/sanzar/Documents/ops-agent
 ```
 
 ### Deploy
 
 ```bash
 helm upgrade --install pathfinder ./helm/pathfinder \
-  -f helm/values-localdocker.yaml \
-  -n pathfinder --create-namespace
+  -n pathfinder --create-namespace \
+  --set opsAgent.image.repository=ops-agent \
+  --set opsAgent.image.tag=local \
+  --set opsAgent.image.pullPolicy=IfNotPresent \
+  --set opsAgent.secrets.OPENAI_API_KEY=sk-...
 ```
 
 ### Verify
@@ -181,12 +187,12 @@ kubectl get ingress -n pathfinder
       ┌───┴───┐     ┌────┴────┐    ┌────┴────┐   ┌────┴────────┐
       │  UI   │     │   API   │    │ Jaeger  │   │ OTel Coll.  │
       │ :80   │     │  :8080  │    │ :16686  │   │ :4317/:4318 │
-      └───────┘     └────┬────┘    └─────────┘   └─────────────┘
-                         │
-               ┌─────────┼─────────┐
-               │         │         │
-          ┌────┴────┐ ┌──┴──┐ ┌───┴────────┐
-          │ NewApp  │ │ RMQ │ │ OTel Coll. │
+      └───────┘     └────┬────┘    └─────────┘   └──────┬──────┘
+                         │                              │ gRPC (:4313)
+               ┌─────────┼─────────┐             ┌──────┴──────┐
+               │         │         │             │  Ops-Agent  │
+          ┌────┴────┐ ┌──┴──┐ ┌───┴────────┐     │    :8080    │
+          │ NewApp  │ │ RMQ │ │ OTel Coll. │     └─────────────┘
           │  :8080  │ │5672 │ │ 4317/4318  │
           └─────────┘ └─────┘ └────────────┘
 ```

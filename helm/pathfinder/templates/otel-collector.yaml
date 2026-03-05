@@ -25,7 +25,7 @@ spec:
           name: otlp-http
         env:
         - name: CUSTOM_CONSUMER_ENDPOINT
-          value: "host.docker.internal:4317"
+          value: "ops-agent:{{ .Values.opsAgent.grpcPort }}"
         volumeMounts:
         - name: data
           mountPath: /data

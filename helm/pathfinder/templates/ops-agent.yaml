@@ -1,0 +1,132 @@
+{{- if .Values.opsAgent.enabled }}
+# =============================================================================
+# Ops Agent — AI-powered OTLP trace consumer and RCA engine
+# Receives traces from otel-collector via gRPC (port {{ .Values.opsAgent.grpcPort }})
+# and performs automated Root Cause Analysis.
+# =============================================================================
+
+# ── ConfigMap (non-sensitive env vars) ────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-agent
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ops-agent
+data:
+  {{- range $key, $value := .Values.opsAgent.config }}
+  {{- if $value }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+
+---
+# ── Secret (sensitive env vars) ───────────────────────────────────────────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ops-agent
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ops-agent
+type: Opaque
+stringData:
+  {{- range $key, $value := .Values.opsAgent.secrets }}
+  {{- if $value }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-agent
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ops-agent
+spec:
+  replicas: {{ .Values.opsAgent.replicas }}
+  selector:
+    matchLabels:
+      app: ops-agent
+  template:
+    metadata:
+      labels:
+        app: ops-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: ops-agent
+          image: "{{ .Values.opsAgent.image.repository }}:{{ .Values.opsAgent.image.tag }}"
+          imagePullPolicy: {{ .Values.opsAgent.image.pullPolicy }}
+          ports:
+            # HTTP — health check, webhooks, OTLP/HTTP (if enabled)
+            - name: http
+              containerPort: {{ .Values.opsAgent.httpPort }}
+              protocol: TCP
+            # gRPC — OTLP trace receiver (used by otel-collector)
+            - name: grpc
+              containerPort: {{ .Values.opsAgent.grpcPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: ops-agent
+            - secretRef:
+                name: ops-agent
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.opsAgent.httpPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.opsAgent.httpPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.opsAgent.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+# Both ports are always exposed so:
+#   - otel-collector reaches gRPC on ops-agent:{{ .Values.opsAgent.grpcPort }}
+#   - external/internal callers reach webhooks on ops-agent:{{ .Values.opsAgent.httpPort }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-agent
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ops-agent
+spec:
+  type: ClusterIP
+  selector:
+    app: ops-agent
+  ports:
+    - name: http
+      port: {{ .Values.opsAgent.httpPort }}
+      targetPort: {{ .Values.opsAgent.httpPort }}
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.opsAgent.grpcPort }}
+      targetPort: {{ .Values.opsAgent.grpcPort }}
+      protocol: TCP
+
+{{- end }}

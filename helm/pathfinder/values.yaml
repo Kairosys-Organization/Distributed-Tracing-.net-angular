@@ -10,8 +10,8 @@ registry: ""  # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
 # ── API ──────────────────────────────────────────────────────
 api:
   image: pathfinder/api
-  tag: latest
-  imagePullPolicy: ""  # IfNotPresent for local, Always for prod
+  tag: dev-1.0.0
+  imagePullPolicy: "IfNotPresent"  # IfNotPresent for local, Always for prod
   replicas: 2
   port: 8080
   resources:
@@ -33,15 +33,15 @@ api:
     OTEL_DOTNET_AUTO_TRACES_SQLCLIENT_INSTRUMENTATION_ENABLED: "true"
     OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED: "true"
     OTEL_DOTNET_AUTO_TRACES_ASPNETCORE_INSTRUMENTATION_ENABLED: "true"
-    CORS_ORIGINS: http://localhost:4200
+    CORS_ORIGINS: http://localhost:4200,http://localhost:4201,http://pathfinder.localhost
     RABBITMQ_HOST: rabbitmq
     NEWAPP_URL: http://newapp:8080/api/newapp/process
 
 # ── UI ───────────────────────────────────────────────────────
 ui:
   image: pathfinder/ui-zoneless
-  tag: latest
-  imagePullPolicy: ""
+  tag: dev-1.0.0
+  imagePullPolicy: "IfNotPresent"
   replicas: 1
   port: 80
   resources:
@@ -52,15 +52,15 @@ ui:
       cpu: 200m
       memory: 128Mi
   env:
-    API_URL: http://api:8080/api
-    OTEL_URL: http://otel-collector:4318/v1/traces
-    JAEGER_URL: http://jaeger:16686
+    API_URL: http://api.pathfinder.localhost/api
+    OTEL_URL: http://otel.pathfinder.localhost/v1/traces
+    JAEGER_URL: http://jaeger.pathfinder.localhost
 
 # ── NewApp ───────────────────────────────────────────────────
 newapp:
   image: pathfinder/newapp
-  tag: latest
-  imagePullPolicy: ""
+  tag: dev-1.0.0
+  imagePullPolicy: "IfNotPresent"
   replicas: 1
   port: 8080
   resources:
@@ -104,15 +104,169 @@ otelCollector:
   httpPort: 4318
 
 # ── Ingress ──────────────────────────────────────────────────
+# ── Local / docker-desktop (nginx) ───────────────────────────
 ingress:
   enabled: true
-  className: alb
+  className: nginx
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
   hosts:
-    ui: pathfinder.example.com
-    api: api.pathfinder.example.com
-    jaeger: jaeger.pathfinder.example.com
-    otel: otel.pathfinder.example.com
+    ui: pathfinder.localhost
+    api: api.pathfinder.localhost
+    jaeger: jaeger.pathfinder.localhost
+    otel: otel.pathfinder.localhost
+
+# ── AWS / Production (ALB) — uncomment and swap above when deploying to EKS ──
+# ingress:
+#   enabled: true
+#   className: alb
+#   annotations:
+#     kubernetes.io/ingress.class: alb
+#     alb.ingress.kubernetes.io/scheme: internet-facing
+#     alb.ingress.kubernetes.io/target-type: ip
+#     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+#     alb.ingress.kubernetes.io/ssl-redirect: "443"
+#     alb.ingress.kubernetes.io/healthcheck-path: /health
+#   hosts:
+#     ui: pathfinder.example.com
+#     api: api.pathfinder.example.com
+#     jaeger: jaeger.pathfinder.example.com
+#     otel: otel.pathfinder.example.com
+
+# ── Ops Agent ─────────────────────────────────────────────────
+# AI-powered trace consumer that receives OTLP traces from the
+# OTel Collector and performs automated Root Cause Analysis (RCA).
+opsAgent:
+  # ---------------------------------------------------------------------------
+  # Image — set repository to your ECR/Docker Hub image URI
+  # ---------------------------------------------------------------------------
+  image:
+    repository: ""     # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/ops-agent
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  enabled: true        # set to false to skip deploying ops-agent entirely
+  replicas: 1
+
+  # ---------------------------------------------------------------------------
+  # Service ports
+  # ---------------------------------------------------------------------------
+  httpPort: 8080       # Flask/gunicorn HTTP port (health check, webhooks, OTLP HTTP)
+  grpcPort: 4313       # gRPC OTLP receiver port (used by OTel Collector → ops-agent)
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # ---------------------------------------------------------------------------
+  # SECRETS — stored in a Kubernetes Secret (sensitive values)
+  # Leave blank ("") to omit from the Secret.
+  # ---------------------------------------------------------------------------
+  secrets:
+    # ── LLM Provider ────────────────────────────────────────────────────────
+    # Set your real key here or via --set opsAgent.secrets.OPENAI_API_KEY=sk-...
+    OPENAI_API_KEY: ""             # sk-...  Required for OpenAI / OpenRouter
+    AZURE_OPENAI_API_KEY: ""       # Azure OpenAI key (alternative to OpenAI)
+
+    # ── Azure Service Principal (for ADF access) ─────────────────────────────
+    # Required by pydantic — set real values for ADF features, placeholders allow local boot
+    AZURE_TENANT_ID: "local-dev"
+    AZURE_CLIENT_ID: "local-dev"
+    AZURE_CLIENT_SECRET: "local-dev"
+    AZURE_SUBSCRIPTION_ID: "local-dev"
+
+    # ── Databricks ────────────────────────────────────────────────────────────
+    DATABRICKS_TOKEN: ""
+
+    # ── Confluence ────────────────────────────────────────────────────────────
+    CONFLUENCE_CLIENT_ID: "local-dev"
+    CONFLUENCE_CLIENT_SECRET: "local-dev"
+
+    # ── ServiceNow ────────────────────────────────────────────────────────────
+    SERVICENOW_USER_PASSWORD: "local-dev"
+
+    # ── Slack ─────────────────────────────────────────────────────────────────
+    SLACK_BOT_BOT_TOKEN: ""        # xoxb-...
+    SLACK_BOT_SIGNING_SECRET: ""
+
+    # ── Notifications (Web App Crew) ──────────────────────────────────────────
+    WEBAPP_TEAMS_WEBHOOK_URL: ""
+    WEBAPP_SLACK_WEBHOOK_URL: ""
+    WEBAPP_SERVICENOW_PASSWORD: ""
+
+  # ---------------------------------------------------------------------------
+  # CONFIG — stored in a ConfigMap (non-sensitive settings)
+  # ---------------------------------------------------------------------------
+  config:
+    # ── Application ───────────────────────────────────────────────────────────
+    LOG_LEVEL: "INFO"
+    PORT: "8080"
+
+    # ── LLM (non-sensitive) ───────────────────────────────────────────────────
+    OPENAI_MODEL: "gpt-4o-mini"
+    OPENAI_API_BASE: ""            # Leave blank for OpenAI; set for OpenRouter/proxy
+    AZURE_OPENAI_ENDPOINT: ""
+    AZURE_OPENAI_DEPLOYMENT_NAME: ""
+    AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
+
+    # ── Azure (non-sensitive) ─────────────────────────────────────────────────
+    AZURE_SUBSCRIPTION_ID: ""
+    AZURE_RESOURCE_GROUP: ""
+    AZURE_FACTORY_NAME: ""
+
+    # ── Databricks (non-sensitive) ────────────────────────────────────────────
+    DATABRICKS_HOST: "https://local-dev.azuredatabricks.net"  # placeholder for local boot
+
+    # ── Confluence (non-sensitive) ────────────────────────────────────────────
+    CONFLUENCE_URL: "https://local-dev.atlassian.net"  # placeholder for local boot
+    CONFLUENCE_SA_NAME: ""
+    CONFLUENCE_DEFAULT_SPACE: ""
+
+    # ── ServiceNow (non-sensitive) ────────────────────────────────────────────
+    SERVICENOW_INSTANCE: "https://local-dev.service-now.com"  # placeholder for local boot
+    SERVICENOW_USER: "local-dev"
+    SERVICENOW_SA: ""
+
+    # ── Slack / Teams (non-sensitive) ─────────────────────────────────────────
+    SLACK_BOT_ENABLED: "false"
+    SLACK_BOT_DEFAULT_CHANNEL: "#on-call"
+    TEAMS_BOT_ENABLED: "false"
+    TEAMS_BOT_APP_ID: ""
+    TEAMS_WEBHOOK_URL: ""
+    TEAMS_ENABLE_NOTIFICATIONS: "true"
+    SLACK_ENABLE_NOTIFICATIONS: "true"
+
+    # ── Web App Crew ──────────────────────────────────────────────────────────
+    WEBAPP_ENABLED: "true"
+    WEBAPP_DOTNET_CODE_DIR: "/code/webapp/pathfinder-api"
+    WEBAPP_ANGULAR_CODE_DIR: "/code/webapp/pathfinder-ui/src"
+    WEBAPP_CODE_READER_DEPTH: "low"
+    WEBAPP_CODE_SEARCH_PROVIDER: "text"
+    WEBAPP_SERVICENOW_URL: ""
+    WEBAPP_SERVICENOW_USER: ""
+    WEBAPP_TEAMS_ENABLE_NOTIFICATIONS: "true"
+    WEBAPP_SLACK_ENABLE_NOTIFICATIONS: "true"
+
+    # ── OpenTelemetry receiver ────────────────────────────────────────────────
+    # gRPC receiver is enabled so the OTel Collector can push traces in-cluster.
+    OTEL_ENABLE_GRPC: "true"
+    OTEL_GRPC_PORT: "4313"
+    OTEL_ENABLE_HTTP: "false"
+    OTEL_HTTP_PORT: "4318"
+    OTEL_ERROR_ONLY: "true"
+    OTEL_MAX_SPANS_PER_TRACE: "500"
+    OTEL_FLUSH_DELAY_SECONDS: "5.0"
+    OTEL_DEDUP_TTL_SECONDS: "300"
+
+    # ── Result Output ─────────────────────────────────────────────────────────
+    RESULT_OUTPUT_URL: ""          # POST RCA JSON to a downstream webhook/API
+    RESULT_OUTPUT_TIMEOUT: "30"
+
+    # ── Incident Deduplication ────────────────────────────────────────────────
+    INCIDENT_DEDUP_FAISS_ENABLED: "false"
+    INCIDENT_DEDUP_EMBEDDING_MODEL: "BAAI/bge-m3"
+    INCIDENT_DEDUP_TTL_SECONDS: "3600"

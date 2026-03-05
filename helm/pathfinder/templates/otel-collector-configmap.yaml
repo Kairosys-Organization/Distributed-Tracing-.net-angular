@@ -21,6 +21,8 @@ data:
                 - "http://localhost:4200"
                 - "http://localhost:4201"
                 - "http://localhost"
+                - "http://pathfinder.localhost"
+                - "http://*.pathfinder.localhost"
               allowed_headers:
                 - "Content-Type"
                 - "Content-Encoding"
@@ -48,9 +50,10 @@ data:
           insecure: true
 
       otlp/custom:
-        endpoint: ${CUSTOM_CONSUMER_ENDPOINT}
+        endpoint: ops-agent:4313
         tls:
           insecure: true
+        wait_for_ready: true
       
       file/custom:
         path: /data/custom-traces.json
