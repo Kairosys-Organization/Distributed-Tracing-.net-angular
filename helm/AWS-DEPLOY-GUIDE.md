@@ -21,6 +21,17 @@ DOMAIN=""          # e.g. pathfinder.mycompany.com
 CERT_ARN=""        # ACM cert ARN for HTTPS (see Step 3)
 ```
 
+The script already defaults to these ECR repos:
+
+```bash
+API_IMAGE_REPO="pftc/dummy-backend1"
+NEWAPP_IMAGE_REPO="pftc/dummy-backend2"
+UI_IMAGE_REPO="pftc/dummy-frontend"
+OPS_AGENT_IMAGE_REPO="pftc/kairosysv1"
+```
+
+Only change those if your ECR repo names are different.
+
 Also fill in all the **Ops-Agent secrets** (OpenAI, Azure, etc.) the same way you did in `local-deploy.sh`.
 
 ---
@@ -33,21 +44,21 @@ aws ecr get-login-password --region us-east-1 | \
   docker login --username AWS --password-stdin $ECR_REGISTRY
 
 # Create repos (first time only)
-aws ecr create-repository --repository-name pathfinder/api
-aws ecr create-repository --repository-name pathfinder/ui-zoneless
-aws ecr create-repository --repository-name pathfinder/newapp
-aws ecr create-repository --repository-name pathfinder/ops-agent
+aws ecr create-repository --repository-name pftc/dummy-backend1
+aws ecr create-repository --repository-name pftc/dummy-backend2
+aws ecr create-repository --repository-name pftc/dummy-frontend
+aws ecr create-repository --repository-name pftc/kairosysv1
 
 # Tag and push
-docker tag pathfinder/api:dev-1.0.0        $ECR_REGISTRY/pathfinder/api:latest
-docker tag pathfinder/ui-zoneless:dev-1.0.0 $ECR_REGISTRY/pathfinder/ui-zoneless:latest
-docker tag pathfinder/newapp:dev-1.0.0      $ECR_REGISTRY/pathfinder/newapp:latest
-docker tag ops-agent:local                  $ECR_REGISTRY/pathfinder/ops-agent:latest
+docker tag pathfinder/api:dev-1.0.0         $ECR_REGISTRY/pftc/dummy-backend1:latest
+docker tag pathfinder/ui-zoneless:dev-1.0.0 $ECR_REGISTRY/pftc/dummy-frontend:latest
+docker tag pathfinder/newapp:dev-1.0.0      $ECR_REGISTRY/pftc/dummy-backend2:latest
+docker tag ops-agent:local                  $ECR_REGISTRY/pftc/kairosysv1:latest
 
-docker push $ECR_REGISTRY/pathfinder/api:latest
-docker push $ECR_REGISTRY/pathfinder/ui-zoneless:latest
-docker push $ECR_REGISTRY/pathfinder/newapp:latest
-docker push $ECR_REGISTRY/pathfinder/ops-agent:latest
+docker push $ECR_REGISTRY/pftc/dummy-backend1:latest
+docker push $ECR_REGISTRY/pftc/dummy-frontend:latest
+docker push $ECR_REGISTRY/pftc/dummy-backend2:latest
+docker push $ECR_REGISTRY/pftc/kairosysv1:latest
 ```
 
 ---
@@ -89,6 +100,8 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 chmod +x helm/aws-deploy.sh
 ./helm/aws-deploy.sh
 ```
+
+If you leave `DOMAIN` and `CERT_ARN` empty, the script deploys in ALB DNS mode and configures the UI to call `/api`, `/otel`, and `/jaeger` on that same ALB automatically.
 
 ---
 

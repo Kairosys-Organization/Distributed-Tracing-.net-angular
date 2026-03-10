@@ -9,13 +9,13 @@ on:
       - 'v*.*.*'
 
 env:
-  AWS_REGION:      eu-north-1
-  ECR_REGISTRY:    002823001366.dkr.ecr.eu-north-1.amazonaws.com
+  AWS_REGION:      us-east-1
+  ECR_REGISTRY:    002823001366.dkr.ecr.us-east-1.amazonaws.com
 
   # ECR repository names
-  ECR_REPO_API:    pathfinder/dummy-backend1   # PathfinderApi  → backend1
-  ECR_REPO_NEWAPP: pathfinder/dummy-backend2   # NewApp         → backend2
-  ECR_REPO_UI:     pathfinder/dummy-frontend   # UI (zoneless)  → frontend
+  ECR_REPO_API:    pftc/dummy-backend1   # PathfinderApi  → backend1
+  ECR_REPO_NEWAPP: pftc/dummy-backend2   # NewApp         → backend2
+  ECR_REPO_UI:     pftc/dummy-frontend   # UI (zoneless)  → frontend
 
   # Build contexts (relative to repo root)
   CTX_API:    PathfinderApi

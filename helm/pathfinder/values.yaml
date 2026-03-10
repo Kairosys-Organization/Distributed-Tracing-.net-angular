@@ -10,9 +10,9 @@ registry: ""  # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
 # ── API ──────────────────────────────────────────────────────
 api:
   image: pathfinder/api
-  tag: dev-1.0.0
+  tag: latest
   imagePullPolicy: "IfNotPresent"  # IfNotPresent for local, Always for prod
-  replicas: 2
+  replicas: 1
   port: 8080
   resources:
     requests:
@@ -40,7 +40,7 @@ api:
 # ── UI ───────────────────────────────────────────────────────
 ui:
   image: pathfinder/ui-zoneless
-  tag: dev-1.0.0
+  tag: latest
   imagePullPolicy: "IfNotPresent"
   replicas: 1
   port: 80
@@ -59,7 +59,7 @@ ui:
 # ── NewApp ───────────────────────────────────────────────────
 newapp:
   image: pathfinder/newapp
-  tag: dev-1.0.0
+  tag: latest
   imagePullPolicy: "IfNotPresent"
   replicas: 1
   port: 8080

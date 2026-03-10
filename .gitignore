@@ -51,3 +51,4 @@ publish/
 
 # Release packages (large binary tars)
 release/
+ops-agent-secrets.sh

@@ -106,9 +106,10 @@ kubectl delete ns pathfinder
 2. EKS cluster running + `kubectl` connected
 3. ECR repositories created:
    ```bash
-   aws ecr create-repository --repository-name pathfinder/api
-   aws ecr create-repository --repository-name pathfinder/ui-zoneless
-   aws ecr create-repository --repository-name pathfinder/newapp
+  aws ecr create-repository --repository-name pftc/dummy-backend1
+  aws ecr create-repository --repository-name pftc/dummy-backend2
+  aws ecr create-repository --repository-name pftc/dummy-frontend
+   aws ecr create-repository --repository-name pftc/kairosysv1
    ```
 4. AWS Load Balancer Controller installed on the cluster
 
@@ -118,53 +119,24 @@ kubectl delete ns pathfinder
 ECR=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$(aws configure get region).amazonaws.com
 aws ecr get-login-password | docker login --username AWS --password-stdin $ECR
 
-docker tag pathfinder/api:latest $ECR/pathfinder/api:latest
-docker tag pathfinder/ui-zoneless:latest $ECR/pathfinder/ui-zoneless:latest
-docker tag pathfinder/newapp:latest $ECR/pathfinder/newapp:latest
+docker tag pathfinder/api:latest $ECR/pftc/dummy-backend1:latest
+docker tag pathfinder/ui-zoneless:latest $ECR/pftc/dummy-frontend:latest
+docker tag pathfinder/newapp:latest $ECR/pftc/dummy-backend2:latest
+docker tag ops-agent:local $ECR/pftc/kairosysv1:latest
 
-docker push $ECR/pathfinder/api:latest
-docker push $ECR/pathfinder/ui-zoneless:latest
-docker push $ECR/pathfinder/newapp:latest
-```
-
-### Create AWS Values Override
-
-```bash
-cat > helm/values-aws.yaml << EOF
-registry: "$ECR"
-
-api:
-  env:
-    CORS_ORIGINS: https://pathfinder.yourdomain.com
-
-ui:
-  env:
-    API_URL: https://api.yourdomain.com/api
-    OTEL_URL: https://otel.yourdomain.com/v1/traces
-    JAEGER_URL: https://jaeger.yourdomain.com
-
-ingress:
-  className: alb
-  annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/CERT-ID
-  hosts:
-    ui: pathfinder.yourdomain.com
-    api: api.yourdomain.com
-    jaeger: jaeger.yourdomain.com
-    otel: otel.yourdomain.com
-EOF
+docker push $ECR/pftc/dummy-backend1:latest
+docker push $ECR/pftc/dummy-frontend:latest
+docker push $ECR/pftc/dummy-backend2:latest
+docker push $ECR/pftc/kairosysv1:latest
 ```
 
 ### Deploy to EKS
 
 ```bash
-helm upgrade --install pathfinder ./helm/pathfinder \
-  -f helm/values-aws.yaml \
-  -n pathfinder --create-namespace
+./helm/aws-deploy.sh
 ```
+
+Set `DOMAIN` and `CERT_ARN` in `helm/aws-deploy.sh` if you want host-based HTTPS. If you leave them empty, the script deploys in ALB DNS mode and the UI uses relative URLs on the same load balancer.
 
 ### Verify
 

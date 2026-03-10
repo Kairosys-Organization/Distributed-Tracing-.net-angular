@@ -51,7 +51,7 @@ exporters:
       insecure: true
 
   otlp/custom:
-    endpoint: 10.44.101.165:4313
+    endpoint: 10.44.66.75:4313
     tls:
       insecure: true
     # wait_for_ready instructs the gRPC client to wait for the server to be ready

@@ -18,10 +18,10 @@ set -e
 # ------------------------------------------------------------------------------
 # 1. Image Configuration
 # ------------------------------------------------------------------------------
-# Set to the tags you built locally (e.g. 'dev-1.0.0' or 'latest')
-API_IMAGE_TAG="dev-1.0.0"
-UI_IMAGE_TAG="dev-1.0.0"
-NEWAPP_IMAGE_TAG="dev-1.0.0"
+# Set to the tags you built locally (e.g. 'latest' or '1.0.0')
+API_IMAGE_TAG="latest"
+UI_IMAGE_TAG="latest"
+NEWAPP_IMAGE_TAG="latest"
 
 # Ops-Agent Image (built locally via: docker build -t ops-agent:local ...)
 OPS_AGENT_IMAGE_REPO="ops-agent"

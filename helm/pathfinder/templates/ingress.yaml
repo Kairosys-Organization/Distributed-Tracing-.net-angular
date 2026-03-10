@@ -9,6 +9,8 @@ metadata:
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
+  {{- if .Values.ingress.hosts.ui }}
+  {{- /* ── Host-based routing (custom domain mode) ───────── */}}
   - host: {{ .Values.ingress.hosts.ui }}
     http:
       paths:
@@ -50,5 +52,38 @@ spec:
             name: otel-collector
             port:
               number: {{ .Values.otelCollector.httpPort }}
+  {{- end }}
+  {{- else }}
+  {{- /* ── Path-based routing (no custom domain — ALB DNS mode) ── */}}
+  - http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api
+            port:
+              number: {{ .Values.api.port }}
+      - path: /jaeger
+        pathType: Prefix
+        backend:
+          service:
+            name: jaeger
+            port:
+              number: {{ .Values.jaeger.port }}
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: otel-collector
+            port:
+              number: {{ .Values.otelCollector.httpPort }}
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ui
+            port:
+              number: {{ .Values.ui.port }}
   {{- end }}
 {{- end }}
