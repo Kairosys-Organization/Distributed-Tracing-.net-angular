@@ -196,6 +196,8 @@ opsAgent:
     # ── Notifications (Web App Crew) ──────────────────────────────────────────
     WEBAPP_TEAMS_WEBHOOK_URL: ""
     WEBAPP_SLACK_WEBHOOK_URL: ""
+    WEB_SLACK_BOT_BOT_TOKEN: ""    # Optional dedicated webapp bot token
+    WEB_SLACK_BOT_SIGNING_SECRET: ""
     WEBAPP_SERVICENOW_PASSWORD: ""
 
   # ---------------------------------------------------------------------------
@@ -205,6 +207,7 @@ opsAgent:
     # ── Application ───────────────────────────────────────────────────────────
     LOG_LEVEL: "INFO"
     PORT: "8080"
+    TMPDIR: "/tmp/ops-agent"
 
     # ── LLM (non-sensitive) ───────────────────────────────────────────────────
     OPENAI_MODEL: "gpt-4o-mini"
@@ -239,6 +242,8 @@ opsAgent:
     TEAMS_WEBHOOK_URL: ""
     TEAMS_ENABLE_NOTIFICATIONS: "true"
     SLACK_ENABLE_NOTIFICATIONS: "true"
+    WEBAPP_SLACK_DEFAULT_CHANNEL: "#on-call"
+    WEB_SLACK_BOT_ENABLED: "true"
 
     # ── Web App Crew ──────────────────────────────────────────────────────────
     WEBAPP_ENABLED: "true"

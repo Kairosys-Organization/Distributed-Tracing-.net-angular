@@ -53,6 +53,9 @@ spec:
       app: ops-agent
   template:
     metadata:
+      annotations:
+        checksum/config: {{ toJson .Values.opsAgent.config | sha256sum }}
+        checksum/secret: {{ toJson .Values.opsAgent.secrets | sha256sum }}
       labels:
         app: ops-agent
     spec:

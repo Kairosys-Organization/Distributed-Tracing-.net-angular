@@ -70,9 +70,14 @@ CONFLUENCE_CLIENT_SECRET="placeholder"
 SERVICENOW_USER_PASSWORD="placeholder"
 SLACK_BOT_BOT_TOKEN=""
 SLACK_BOT_SIGNING_SECRET=""
+WEBAPP_SLACK_DEFAULT_CHANNEL="#on-call"
+WEB_SLACK_BOT_ENABLED="true"
+WEB_SLACK_BOT_BOT_TOKEN=""
+WEB_SLACK_BOT_SIGNING_SECRET=""
 WEBAPP_TEAMS_WEBHOOK_URL=""
 WEBAPP_SLACK_WEBHOOK_URL=""
 WEBAPP_SERVICENOW_PASSWORD=""
+TMPDIR="/tmp/ops-agent"
 
 # Source local secrets file if it exists (gitignored — safe to put real keys there)
 SECRETS_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ops-agent-secrets.sh"
@@ -178,9 +183,6 @@ helm upgrade --install pathfinder "$SCRIPT_DIR/pathfinder" \
   \
   --set opsAgent.secrets.OPENAI_API_KEY="$OPENAI_API_KEY" \
   --set opsAgent.secrets.AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY" \
-  --set opsAgent.secrets.AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" \
-  --set opsAgent.secrets.AZURE_OPENAI_DEPLOYMENT_NAME="$AZURE_OPENAI_DEPLOYMENT_NAME" \
-  --set opsAgent.secrets.AZURE_OPENAI_API_VERSION="$AZURE_OPENAI_API_VERSION" \
   --set opsAgent.secrets.AZURE_TENANT_ID="$AZURE_TENANT_ID" \
   --set opsAgent.secrets.AZURE_CLIENT_ID="$AZURE_CLIENT_ID" \
   --set opsAgent.secrets.AZURE_CLIENT_SECRET="$AZURE_CLIENT_SECRET" \
@@ -191,9 +193,17 @@ helm upgrade --install pathfinder "$SCRIPT_DIR/pathfinder" \
   --set opsAgent.secrets.SERVICENOW_USER_PASSWORD="$SERVICENOW_USER_PASSWORD" \
   --set opsAgent.secrets.SLACK_BOT_BOT_TOKEN="$SLACK_BOT_BOT_TOKEN" \
   --set opsAgent.secrets.SLACK_BOT_SIGNING_SECRET="$SLACK_BOT_SIGNING_SECRET" \
+  --set opsAgent.secrets.WEB_SLACK_BOT_BOT_TOKEN="$WEB_SLACK_BOT_BOT_TOKEN" \
+  --set opsAgent.secrets.WEB_SLACK_BOT_SIGNING_SECRET="$WEB_SLACK_BOT_SIGNING_SECRET" \
   --set opsAgent.secrets.WEBAPP_TEAMS_WEBHOOK_URL="$WEBAPP_TEAMS_WEBHOOK_URL" \
   --set opsAgent.secrets.WEBAPP_SLACK_WEBHOOK_URL="$WEBAPP_SLACK_WEBHOOK_URL" \
   --set opsAgent.secrets.WEBAPP_SERVICENOW_PASSWORD="$WEBAPP_SERVICENOW_PASSWORD" \
+  --set opsAgent.config.TMPDIR="$TMPDIR" \
+  --set opsAgent.config.AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" \
+  --set opsAgent.config.AZURE_OPENAI_DEPLOYMENT_NAME="$AZURE_OPENAI_DEPLOYMENT_NAME" \
+  --set opsAgent.config.AZURE_OPENAI_API_VERSION="$AZURE_OPENAI_API_VERSION" \
+  --set opsAgent.config.WEBAPP_SLACK_DEFAULT_CHANNEL="$WEBAPP_SLACK_DEFAULT_CHANNEL" \
+  --set opsAgent.config.WEB_SLACK_BOT_ENABLED="$WEB_SLACK_BOT_ENABLED" \
   \
   "${ALB_COMMON_ARGS[@]}" \
   "${ALB_EXTRA_ARGS[@]}"
